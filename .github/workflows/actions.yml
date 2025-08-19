@@ -42,7 +42,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         password: ${{ secrets.SSH_PASS }}
         source: "."
-        target: "/opt/streamlit-login"
+        target: "/opt/streamlit-pdf"
 
     - name: Deploy and run container on remote server
       uses: appleboy/ssh-action@v0.1.7
@@ -51,7 +51,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         password: ${{ secrets.SSH_PASS }}
         script: |
-          cd /opt/streamlit-login
+          cd /opt/streamlit-pdf
           docker-compose down  # Para garantir que o antigo contêiner seja removido
           docker-compose up -d postgres  # Garantir que o contêiner do banco de dados esteja rodando
           docker-compose up -d --no-deps --build app  # Recriar apenas o contêiner do aplicativo
