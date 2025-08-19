@@ -1,0 +1,17 @@
+argon2
+argon2-cffi
+dask
+extra_streamlit_components
+psycopg2-binary
+openpyxl
+pandas
+PyYAML
+Requests
+schedule
+streamlit_keyup
+streamlit_keyup
+streamlit_option_menu
+PyPDF2
+pdfplumber
+PyMuPDF==1.23.8
+Pillow

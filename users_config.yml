@@ -1,0 +1,11 @@
+users:
+  admin:
+    username: admin
+    email: admin@example.com
+    password: Admin@123
+    type: admin
+  basic:
+    username: user
+    email: user@example.com
+    password: User@123
+    type: basic

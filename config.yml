@@ -1,0 +1,4 @@
+cookie:
+  name: streamlit_auth
+  key: 72c1c9ad87606dfd4595fc10063765fe
+  expiry_days: 30
