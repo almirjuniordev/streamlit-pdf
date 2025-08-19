@@ -218,6 +218,7 @@ class __login__:
                     else:
                         st.session_state['LOGGED_IN'] = True
                         st.session_state['USER_TYPE'] = user_type
+                        st.session_state['USERNAME'] = username
                         st.session_state['SELECTED_MENU'] = 'PDF Upload'  # Definindo menu padrão
                         expiration_date = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S GMT")
 
@@ -234,6 +235,15 @@ class __login__:
                         st.rerun()
 
         if st.session_state.get('LOGGED_IN', False):
+            # Exibe informações do usuário logado
+            username = st.session_state.get('USERNAME', 'Unknown')
+            user_type = st.session_state.get('USER_TYPE', 'Unknown')
+            
+            with st.sidebar:
+                st.markdown(f"**👤 Usuário:** {username}")
+                st.markdown(f"**🔑 Tipo:** {user_type}")
+                st.markdown("---")
+            
             self.nav_sidebar()  # Adicionando chamada ao método nav_sidebar para garantir que o menu de navegação seja renderizado
             if st.session_state.get('USER_TYPE') == 'admin':
                 self.render_admin_interface()
@@ -340,6 +350,7 @@ class __login__:
     def logout(self):
         st.session_state['LOGGED_IN'] = False
         st.session_state['USER_TYPE'] = None
+        st.session_state['USERNAME'] = None
         st.session_state['SELECTED_MENU'] = None
         self.delete_cookie('__streamlit_login_signup_ui_username__')
         st.rerun()
@@ -354,11 +365,43 @@ class __login__:
         footer {visibility: hidden;}
         </style> """, unsafe_allow_html=True)
 
+    def check_cookie_session(self):
+        """Verifica se existe uma sessão válida nos cookies"""
+        try:
+            cookie_data = self.get_cookie('__streamlit_login_signup_ui_username__')
+            if cookie_data:
+                cookie_info = json.loads(cookie_data)
+                expiration_date = datetime.strptime(cookie_info['expires'], "%Y-%m-%dT%H:%M:%S GMT")
+                
+                # Verifica se o cookie não expirou
+                if expiration_date > datetime.utcnow():
+                    return True, cookie_info['user_id']
+                else:
+                    # Cookie expirado, remove
+                    self.delete_cookie('__streamlit_login_signup_ui_username__')
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # Cookie inválido, remove
+            self.delete_cookie('__streamlit_login_signup_ui_username__')
+        
+        return False, None
+
     def build_login_ui(self):
         if 'LOGGED_IN' not in st.session_state:
             st.session_state['LOGGED_IN'] = False
         if 'LOGOUT_BUTTON_HIT' not in st.session_state:
             st.session_state['LOGOUT_BUTTON_HIT'] = False
+
+        # Verifica se há uma sessão válida nos cookies
+        if not st.session_state['LOGGED_IN']:
+            cookie_valid, username = self.check_cookie_session()
+            if cookie_valid and username:
+                # Recupera informações do usuário do banco
+                authenticated, user_type = check_usr_pass(username, "")
+                if authenticated:
+                    st.session_state['LOGGED_IN'] = True
+                    st.session_state['USER_TYPE'] = user_type
+                    st.session_state['USERNAME'] = username
+                    st.session_state['SELECTED_MENU'] = 'PDF Upload'
 
         self.login_widget()
         self.logout_widget()

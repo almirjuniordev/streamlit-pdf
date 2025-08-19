@@ -221,6 +221,11 @@ def check_usr_pass(username: str, password: str):
     cursor.close()
     conn.close()
     if user:
+        # Se password está vazio, apenas verifica se o usuário existe (para validação de sessão)
+        if not password:
+            return True, user[1]  # user[1] é o type_name
+        
+        # Verifica a senha normalmente
         ph = PasswordHasher()
         try:
             if ph.verify(user[0], password):  # user[0] é o password
