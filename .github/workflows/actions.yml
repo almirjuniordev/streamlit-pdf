@@ -1,58 +1,119 @@
-name: Docker Image CI
+name: "CodeQL + Docker Build/Deploy"
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  schedule:
+    - cron: '18 7 * * 5' # apenas CodeQL rodará no agendamento
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
     steps:
-    - uses: actions/checkout@v4
-    - uses: hoverkraft-tech/compose-action@v2.0.1
-      with:
-        # Caminho para o seu arquivo docker-compose.yml (ajuste se necessário)
-        compose-file: 'docker-compose.yml' 
-        # Comando que você quer executar (neste caso, build)
-        compose-command: 'build app'
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Archive build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-artifacts
-        path: .
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix['build-mode'] }}
+
+      - if: matrix['build-mode'] == 'manual'
+        shell: bash
+        run: |
+          echo 'Configure aqui os comandos de build manual caso use build-mode "manual".'
+          exit 1
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  docker_build:
+    name: Docker Compose Build
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: ${{ github.event_name != 'schedule' }} # não roda em cron
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with Docker Compose
+        uses: hoverkraft-tech/compose-action@v2.0.1
+        with:
+          compose-file: 'docker-compose.yml'
+          compose-command: 'build app'
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: ./
 
   deploy:
+    name: Deploy to Remote Server
     runs-on: ubuntu-latest
-    needs: build
-
+    needs: docker_build
+    # só faz deploy em push na main (não em PR e não em cron)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      DEPLOY_PATH: /opt/streamlit-pdf
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: build-artifacts
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
-    - name: Copy files via SSH
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        password: ${{ secrets.SSH_PASS }}
-        source: "."
-        target: "/opt/streamlit-pdf"
+      - name: Copy files via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          source: "."
+          target: "${{ env.DEPLOY_PATH }}"
 
-    - name: Deploy and run container on remote server
-      uses: appleboy/ssh-action@v0.1.7
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        password: ${{ secrets.SSH_PASS }}
-        script: |
-          cd /opt/streamlit-pdf
-          docker-compose down  # Para garantir que o antigo contêiner seja removido
-          docker-compose up -d postgres  # Garantir que o contêiner do banco de dados esteja rodando
-          docker-compose up -d --no-deps --build app  # Recriar apenas o contêiner do aplicativo
-          docker system prune -f  # Limpar contêineres, redes, imagens e caches não utilizados
+      - name: Deploy and run container on remote server
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          script: |
+            set -euo pipefail
+            cd "${DEPLOY_PATH}"
+            # Use 'docker compose' se seu servidor tiver Compose v2 (plugin). 
+            # Se usar o binário antigo, mantenha 'docker-compose'.
+            if command -v docker-compose >/dev/null 2>&1; then
+              DC="docker-compose"
+            else
+              DC="docker compose"
+            fi
+
+            $DC down || true
+            $DC up -d postgres
+            $DC up -d --no-deps --build app
+            docker system prune -f
