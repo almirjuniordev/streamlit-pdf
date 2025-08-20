@@ -222,15 +222,19 @@ class __login__:
                         st.session_state['SELECTED_MENU'] = 'PDF Upload'  # Definindo menu padrão
                         expiration_date = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S GMT")
 
-                        # Cria o dicionário de dados do cookie
-                        cookie_data = {
+                        # Cria o dicionário de dados da sessão
+                        session_data = {
                             'user_id': username,
                             'expires': expiration_date
                         }
 
-                        # Serializa o dicionário para uma string JSON
-                        cookie_data_json = json.dumps(cookie_data)
+                        # Salva na sessão persistente
+                        st.session_state['persistent_session'] = session_data
 
+                        # Serializa o dicionário para uma string JSON (para cookie)
+                        cookie_data_json = json.dumps(session_data)
+
+                        # Define o cookie também
                         self.set_cookie('__streamlit_login_signup_ui_username__', cookie_data_json, days_expire=30)
                         st.rerun()
 
@@ -352,6 +356,12 @@ class __login__:
         st.session_state['USER_TYPE'] = None
         st.session_state['USERNAME'] = None
         st.session_state['SELECTED_MENU'] = None
+        
+        # Remove a sessão persistente
+        if 'persistent_session' in st.session_state:
+            del st.session_state['persistent_session']
+        
+        # Remove o cookie
         self.delete_cookie('__streamlit_login_signup_ui_username__')
         st.rerun()
 
@@ -385,16 +395,41 @@ class __login__:
         
         return False, None
 
+    def check_persistent_session(self):
+        """Verifica se existe uma sessão persistente no session_state"""
+        try:
+            if 'persistent_session' in st.session_state:
+                session_data = st.session_state['persistent_session']
+                expiration_date = datetime.strptime(session_data['expires'], "%Y-%m-%dT%H:%M:%S GMT")
+                
+                # Verifica se a sessão não expirou
+                if expiration_date > datetime.utcnow():
+                    return True, session_data['user_id']
+                else:
+                    # Sessão expirada, remove
+                    del st.session_state['persistent_session']
+        except (KeyError, ValueError) as e:
+            # Sessão inválida, remove
+            if 'persistent_session' in st.session_state:
+                del st.session_state['persistent_session']
+        
+        return False, None
+
     def build_login_ui(self):
         if 'LOGGED_IN' not in st.session_state:
             st.session_state['LOGGED_IN'] = False
         if 'LOGOUT_BUTTON_HIT' not in st.session_state:
             st.session_state['LOGOUT_BUTTON_HIT'] = False
 
-        # Verifica se há uma sessão válida nos cookies
+        # Verifica se há uma sessão válida nos cookies ou session_state
         if not st.session_state['LOGGED_IN']:
-            cookie_valid, username = self.check_cookie_session()
-            if cookie_valid and username:
+            # Primeiro tenta verificar a sessão persistente
+            session_valid, username = self.check_persistent_session()
+            if not session_valid:
+                # Se não há sessão persistente, tenta verificar cookies
+                session_valid, username = self.check_cookie_session()
+            
+            if session_valid and username:
                 # Recupera informações do usuário do banco
                 authenticated, user_type = check_usr_pass(username, "")
                 if authenticated:

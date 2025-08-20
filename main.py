@@ -4,6 +4,14 @@ from streamlit_pdf_auth_ui.utils import init_db
 from streamlit_pdf_auth_ui.widgets import __login__
 from streamlit_pdf_auth_ui.solution import start_scheduler
 
+# Configurar persistência do session_state
+st.set_page_config(
+    page_title="PDF Management System",
+    page_icon="📄",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Suprimir avisos de uma categoria específica
 #st.set_option('deprecation.showfileUploaderEncoding', False)
 #st.set_option('deprecation.showPyplotGlobalUse', False)
