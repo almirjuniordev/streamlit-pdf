@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       tesseract-ocr-por \
       tesseract-ocr-eng \
       poppler-utils \
+      build-essential \
+      python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuário não-root e diretórios de trabalho
