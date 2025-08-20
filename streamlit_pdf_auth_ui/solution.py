@@ -89,16 +89,9 @@ def extract_images_from_pdf(file_path):
 
 def main_page():
     """Página principal para upload e processamento de PDFs com AI"""
-    # Executar o script AI PDF
-    import subprocess
-    import sys
-    import os
-    
-    # Caminho para o script ai_pdf.py
-    ai_pdf_path = os.path.join(os.path.dirname(__file__), 'ai_pdf.py')
-    
-    # Executar o script como um módulo
-    exec(open(ai_pdf_path).read())
+    # Importar e executar a função do AI PDF
+    from .ai_pdf import run_ai_pdf
+    run_ai_pdf()
 
     # Criar diretório para arquivos
     save_directory = 'uploaded_pdfs'
