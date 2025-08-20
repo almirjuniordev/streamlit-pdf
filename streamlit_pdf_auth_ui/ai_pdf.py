@@ -101,10 +101,6 @@ def run_ai_pdf():
 
         return partes
 
-    #def preprocess_image(image):
-    #    gray = image.convert("L")
-    #    return gray.point(lambda x: 0 if x < 180 else 255)
-
     def preprocess_image(image):
         gray = image.convert("L")  # Grayscale
         # Binarização com threshold adaptativo

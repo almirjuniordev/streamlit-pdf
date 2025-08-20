@@ -380,7 +380,12 @@ class __login__:
         try:
             cookie_data = self.get_cookie('__streamlit_login_signup_ui_username__')
             if cookie_data:
-                cookie_info = json.loads(cookie_data)
+                # Verifica se cookie_data já é um dicionário
+                if isinstance(cookie_data, dict):
+                    cookie_info = cookie_data
+                else:
+                    cookie_info = json.loads(cookie_data)
+                
                 expiration_date = datetime.strptime(cookie_info['expires'], "%Y-%m-%dT%H:%M:%S GMT")
                 
                 # Verifica se o cookie não expirou
