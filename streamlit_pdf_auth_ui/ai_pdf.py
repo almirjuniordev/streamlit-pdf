@@ -33,6 +33,20 @@ def run_ai_pdf():
     
     if "protocolo_atual" not in st.session_state:
         st.session_state["protocolo_atual"] = ""
+    
+    if "nome_pasta" not in st.session_state:
+        st.session_state["nome_pasta"] = ""
+
+    # Botão para criar diretório/nomear pasta
+    if st.button("📁 Criar Nome da Pasta"):
+        if protocolo:
+            nome_pasta = f"protocolo_{protocolo}_{username}"
+            st.session_state["nome_pasta"] = nome_pasta
+            st.session_state["protocolo_atual"] = protocolo
+            st.success(f"✅ Pasta criada: '{nome_pasta}'")
+            st.info("Agora você pode fazer upload dos PDFs. Os arquivos serão organizados nesta pasta quando você fizer o download.")
+        else:
+            st.error("⚠️ Por favor, insira o número do protocolo antes de criar a pasta.")
 
     uploaded_files = st.file_uploader("Faça upload de PDFs escaneados", type=["pdf"], accept_multiple_files=True)
 
@@ -113,9 +127,11 @@ def run_ai_pdf():
         return None, len(imagens)
 
     # PROCESSAMENTO PRINCIPAL
-    if uploaded_files and protocolo:
-        # Atualizar protocolo atual
-        st.session_state["protocolo_atual"] = protocolo
+    if uploaded_files and st.session_state["nome_pasta"]:
+        # Verificar se a pasta foi criada
+        if not st.session_state["nome_pasta"]:
+            st.error("⚠️ Crie o nome da pasta antes de processar os arquivos.")
+            return
         
         start_time = time.time()
         sucesso = 0
@@ -195,14 +211,16 @@ def run_ai_pdf():
         minutes, seconds = divmod(int(elapsed_time), 60)
         st.info(f"🕒 Tempo total de execução: **{minutes} min {seconds} seg**")
 
+    elif uploaded_files and not st.session_state["nome_pasta"]:
+        st.error("⚠️ Crie o nome da pasta antes de processar os arquivos.")
     elif uploaded_files and not protocolo:
-        st.error("⚠️ Informe o número do protocolo antes de processar os arquivos.")
+        st.error("⚠️ Informe o número do protocolo antes de criar a pasta.")
 
     # SEÇÃO DE DOWNLOAD DOS ARQUIVOS PROCESSADOS
     if st.session_state["processed_files"]:
         st.divider()
         st.header("💾 Download dos Arquivos Processados")
-        st.info(f"📁 Protocolo: {st.session_state['protocolo_atual']}")
+        st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
         
         # Botão para download de todos os arquivos
         if st.button("📦 Download de Todos os Arquivos (ZIP)"):
@@ -220,7 +238,7 @@ def run_ai_pdf():
             st.download_button(
                 label="💾 Download ZIP Completo",
                 data=zip_buffer.getvalue(),
-                file_name=f"protocolo_{st.session_state['protocolo_atual']}_processados.zip",
+                file_name=f"{st.session_state['nome_pasta']}_processados.zip",
                 mime="application/zip"
             )
         
@@ -248,6 +266,7 @@ def run_ai_pdf():
         if st.button("🗑️ Limpar Arquivos Processados"):
             st.session_state["processed_files"] = []
             st.session_state["protocolo_atual"] = ""
+            st.session_state["nome_pasta"] = ""
             st.rerun()
 
     # RODAPÉ
