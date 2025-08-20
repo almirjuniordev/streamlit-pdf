@@ -129,6 +129,18 @@ def run_ai_pdf():
             st.error("⚠️ Crie o nome da pasta antes de processar os arquivos.")
             return
         
+        # Verificar tamanho total dos arquivos antes do processamento
+        total_upload_size = sum(len(file.read()) for file in uploaded_files)
+        total_upload_size_mb = total_upload_size / (1024 * 1024)
+        
+        if total_upload_size_mb > 1000:  # Mais de 1GB
+            st.error("❌ Arquivos muito grandes detectados. Tamanho total: {:.1f} MB. Recomendamos processar arquivos menores.")
+            return
+        
+        # Resetar arquivos para leitura
+        for file in uploaded_files:
+            file.seek(0)
+        
         start_time = time.time()
         sucesso = 0
         compactados = 0
@@ -218,30 +230,46 @@ def run_ai_pdf():
         st.header("💾 Download dos Arquivos Processados")
         st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
         
-        # Botão para download de todos os arquivos
-        if st.button("📦 Download de Todos os Arquivos (ZIP)"):
-            import zipfile
-            
-            # Criar arquivo ZIP em memória
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                for file_info in st.session_state["processed_files"]:
-                    zip_file.writestr(file_info['nome'], file_info['dados'])
-            
-            zip_buffer.seek(0)
-            
-            # Botão de download do ZIP
-            st.download_button(
-                label="💾 Download ZIP Completo",
-                data=zip_buffer.getvalue(),
-                file_name=f"{st.session_state['nome_pasta']}_processados.zip",
-                mime="application/zip"
-            )
+        # Calcular tamanho total dos arquivos
+        total_size = sum(len(file_info['dados']) for file_info in st.session_state["processed_files"])
+        total_size_mb = total_size / (1024 * 1024)
+        
+        st.info(f"📏 Tamanho total: {total_size_mb:.2f} MB")
+        
+        # Aviso para arquivos grandes
+        if total_size_mb > 100:  # Mais de 100MB
+            st.warning("⚠️ Arquivos muito grandes detectados. Recomendamos download individual para melhor performance.")
+        
+        # Botão para download de todos os arquivos (com verificação de tamanho)
+        if total_size_mb < 500:  # Limite de 500MB para ZIP
+            if st.button("📦 Download de Todos os Arquivos (ZIP)"):
+                import zipfile
+                
+                with st.spinner("Criando arquivo ZIP..."):
+                    # Criar arquivo ZIP em memória
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for file_info in st.session_state["processed_files"]:
+                            zip_file.writestr(file_info['nome'], file_info['dados'])
+                    
+                    zip_buffer.seek(0)
+                    
+                    # Botão de download do ZIP
+                    st.download_button(
+                        label="💾 Download ZIP Completo",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"{st.session_state['nome_pasta']}_processados.zip",
+                        mime="application/zip"
+                    )
+        else:
+            st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
         
         # Download individual de cada arquivo
         st.subheader("📄 Download Individual")
         for i, file_info in enumerate(st.session_state["processed_files"]):
-            col1, col2 = st.columns([3, 1])
+            file_size_mb = len(file_info['dados']) / (1024 * 1024)
+            
+            col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 st.write(f"**{file_info['nome']}**")
                 if file_info['tipo'] == 'com_guia':
@@ -250,6 +278,9 @@ def run_ai_pdf():
                     st.warning("Sem número de guia")
             
             with col2:
+                st.write(f"📏 {file_size_mb:.1f} MB")
+            
+            with col3:
                 st.download_button(
                     label="💾 Download",
                     data=file_info['dados'],
@@ -260,9 +291,16 @@ def run_ai_pdf():
         
         # Botão para limpar arquivos processados
         if st.button("🗑️ Limpar Arquivos Processados"):
+            # Limpar arquivos da memória
             st.session_state["processed_files"] = []
             st.session_state["protocolo_atual"] = ""
             st.session_state["nome_pasta"] = ""
+            
+            # Forçar limpeza de memória
+            import gc
+            gc.collect()
+            
+            st.success("✅ Arquivos removidos da memória com sucesso!")
             st.rerun()
 
     # RODAPÉ
