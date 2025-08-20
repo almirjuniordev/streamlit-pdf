@@ -88,32 +88,17 @@ def extract_images_from_pdf(file_path):
         return []
 
 def main_page():
-    """Página principal para upload e processamento de PDFs"""
-    st.markdown("""
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <style>
-        .block-container {
-            max-width: 80rem;
-        }
-        .upload-area {
-            border: 2px dashed #ccc;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            margin: 10px 0;
-        }
-        .upload-area:hover {
-            border-color: #007bff;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.title('📄 Sistema de Gerenciamento de PDFs')
-    st.subheader("Upload, Processamento e Análise de Documentos PDF")
+    """Página principal para upload e processamento de PDFs com AI"""
+    # Executar o script AI PDF
+    import subprocess
+    import sys
+    import os
+    
+    # Caminho para o script ai_pdf.py
+    ai_pdf_path = os.path.join(os.path.dirname(__file__), 'ai_pdf.py')
+    
+    # Executar o script como um módulo
+    exec(open(ai_pdf_path).read())
 
     # Criar diretório para arquivos
     save_directory = 'uploaded_pdfs'
