@@ -26,23 +26,13 @@ def run_ai_pdf():
     username = st.session_state.get('USERNAME', 'unknown_user')
     
     protocolo = st.text_input("Informe o número do protocolo!")
-    if "caminho_completo" not in st.session_state:
-        st.session_state["caminho_completo"] = ""
-
-    # Caminho base adaptado para Docker - diretório do usuário
-    caminho_base = f'/app/processed_pdfs/{username}/' 
-
-    if st.button("Criar diretório"):
-        if protocolo:
-            caminho_completo = os.path.join(caminho_base, protocolo)
-            st.session_state["caminho_completo"] = caminho_completo
-            if os.path.exists(caminho_completo):
-                st.warning(f"O diretório '{caminho_completo}' já existe.")
-            else:
-                os.makedirs(caminho_completo)
-                st.success(f"Diretório '{caminho_completo}' criado com sucesso.")
-        else:
-            st.error("Por favor, insira um nome de diretório.")
+    
+    # Armazenar arquivos processados na sessão
+    if "processed_files" not in st.session_state:
+        st.session_state["processed_files"] = []
+    
+    if "protocolo_atual" not in st.session_state:
+        st.session_state["protocolo_atual"] = ""
 
     uploaded_files = st.file_uploader("Faça upload de PDFs escaneados", type=["pdf"], accept_multiple_files=True)
 
@@ -123,11 +113,15 @@ def run_ai_pdf():
         return None, len(imagens)
 
     # PROCESSAMENTO PRINCIPAL
-    if uploaded_files and st.session_state["caminho_completo"]:
+    if uploaded_files and protocolo:
+        # Atualizar protocolo atual
+        st.session_state["protocolo_atual"] = protocolo
+        
         start_time = time.time()
         sucesso = 0
         compactados = 0
         nao_encontrados = 0
+        processed_files = []
 
         for uploaded_file in uploaded_files:
             st.divider()
@@ -155,27 +149,37 @@ def run_ai_pdf():
             else:
                 partes_pdf = [original_pdf_bytes]
 
+            # Processar e armazenar arquivos na sessão
             if numero_guia:
                 for idx, parte in enumerate(partes_pdf):
                     sufixo_parte = f"_GUIA_DOC{idx+1}.pdf"
-                    caminho_parte = os.path.join(st.session_state["caminho_completo"], f"{numero_guia}{sufixo_parte}")
-                    with open(caminho_parte, "wb") as f:
-                        f.write(parte)
-                st.success(f"✅ PDF salvo com nome base: {numero_guia}_GUIA_DOC*.pdf")
+                    nome_arquivo = f"{numero_guia}{sufixo_parte}"
+                    
+                    processed_files.append({
+                        'nome': nome_arquivo,
+                        'dados': parte,
+                        'tipo': 'com_guia',
+                        'numero_guia': numero_guia
+                    })
+                st.success(f"✅ PDF processado: {numero_guia}_GUIA_DOC*.pdf")
                 sucesso += 1
             else:
-                sub_dir_sem_numero = os.path.join(st.session_state["caminho_completo"], "SEM_NUMERO")
-                if not os.path.exists(sub_dir_sem_numero):
-                    os.makedirs(sub_dir_sem_numero)
-
                 for idx, parte in enumerate(partes_pdf):
                     sufixo_parte = f"_SEM_GUIA_DOC{idx+1}.pdf"
-                    caminho_parte = os.path.join(sub_dir_sem_numero, sufixo_parte)
-                    with open(caminho_parte, "wb") as f:
-                        f.write(parte)
+                    nome_arquivo = f"SEM_GUIA_{uploaded_file.name.replace('.pdf', '')}{sufixo_parte}"
+                    
+                    processed_files.append({
+                        'nome': nome_arquivo,
+                        'dados': parte,
+                        'tipo': 'sem_guia',
+                        'numero_guia': None
+                    })
 
-                st.info(f"📂 PDF sem número foi salvo em: {sub_dir_sem_numero}")
+                st.info(f"📂 PDF sem número processado: {nome_arquivo}")
                 nao_encontrados += 1
+
+        # Armazenar arquivos processados na sessão
+        st.session_state["processed_files"] = processed_files
 
         # RESUMO
         total = len(uploaded_files)
@@ -190,11 +194,61 @@ def run_ai_pdf():
         elapsed_time = time.time() - start_time
         minutes, seconds = divmod(int(elapsed_time), 60)
         st.info(f"🕒 Tempo total de execução: **{minutes} min {seconds} seg**")
-        st.error("Pressione CTRL + F5 no teclado para processar outra remessa.")
 
-    else:
-        if uploaded_files and not st.session_state["caminho_completo"]:
-            st.error("⚠️ Crie o diretório antes de fazer upload dos arquivos.")
+    elif uploaded_files and not protocolo:
+        st.error("⚠️ Informe o número do protocolo antes de processar os arquivos.")
+
+    # SEÇÃO DE DOWNLOAD DOS ARQUIVOS PROCESSADOS
+    if st.session_state["processed_files"]:
+        st.divider()
+        st.header("💾 Download dos Arquivos Processados")
+        st.info(f"📁 Protocolo: {st.session_state['protocolo_atual']}")
+        
+        # Botão para download de todos os arquivos
+        if st.button("📦 Download de Todos os Arquivos (ZIP)"):
+            import zipfile
+            
+            # Criar arquivo ZIP em memória
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for file_info in st.session_state["processed_files"]:
+                    zip_file.writestr(file_info['nome'], file_info['dados'])
+            
+            zip_buffer.seek(0)
+            
+            # Botão de download do ZIP
+            st.download_button(
+                label="💾 Download ZIP Completo",
+                data=zip_buffer.getvalue(),
+                file_name=f"protocolo_{st.session_state['protocolo_atual']}_processados.zip",
+                mime="application/zip"
+            )
+        
+        # Download individual de cada arquivo
+        st.subheader("📄 Download Individual")
+        for i, file_info in enumerate(st.session_state["processed_files"]):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{file_info['nome']}**")
+                if file_info['tipo'] == 'com_guia':
+                    st.success(f"Guia: {file_info['numero_guia']}")
+                else:
+                    st.warning("Sem número de guia")
+            
+            with col2:
+                st.download_button(
+                    label="💾 Download",
+                    data=file_info['dados'],
+                    file_name=file_info['nome'],
+                    mime="application/pdf",
+                    key=f"download_{i}"
+                )
+        
+        # Botão para limpar arquivos processados
+        if st.button("🗑️ Limpar Arquivos Processados"):
+            st.session_state["processed_files"] = []
+            st.session_state["protocolo_atual"] = ""
+            st.rerun()
 
     # RODAPÉ
     footer_html = """
