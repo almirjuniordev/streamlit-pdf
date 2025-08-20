@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Usuário não-root e diretórios de trabalho
 RUN useradd -u 1000 -m appuser \
  && mkdir -p /app/processed_pdfs \
+ && chmod 777 /app/processed_pdfs \
  && chown -R appuser:appuser /app
 
 # 2) Somente requirements primeiro (mantém cache das libs Python)

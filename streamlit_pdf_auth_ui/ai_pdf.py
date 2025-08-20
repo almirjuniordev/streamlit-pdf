@@ -22,12 +22,15 @@ def run_ai_pdf():
         # st.image("logo.png", width=280)  # Comentado pois não temos logo no Docker
         pass
 
+    # Obter nome do usuário logado
+    username = st.session_state.get('USERNAME', 'unknown_user')
+    
     protocolo = st.text_input("Informe o número do protocolo!")
     if "caminho_completo" not in st.session_state:
         st.session_state["caminho_completo"] = ""
 
-    # Caminho base adaptado para Docker
-    caminho_base = '/app/processed_pdfs/' 
+    # Caminho base adaptado para Docker - diretório do usuário
+    caminho_base = f'/app/processed_pdfs/{username}/' 
 
     if st.button("Criar diretório"):
         if protocolo:
