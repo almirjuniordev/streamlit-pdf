@@ -72,60 +72,34 @@ def run_ai_pdf():
         match = re.search(pattern, text, re.IGNORECASE)
         return match.group(1) if match else None
 
-    def reduzir_ou_dividir_pdf(pdf_bytes, max_mb=3, max_partes=10, dpi_inicial=300, dpi_min=100, qualidade_jpeg=95):
-        """
-        Divide o PDF em partes de até `max_mb` MB.
-        Gera apenas o número necessário de partes, com máximo de `max_partes`.
-        Reduz qualidade automaticamente se necessário.
-        """
-        dpi_atual = dpi_inicial
-        qualidade_atual = qualidade_jpeg
+    def reduzir_ou_dividir_pdf(pdf_bytes, max_mb=3):
+        imagens = convert_from_bytes(pdf_bytes, dpi=300)
+        partes = []
+        tamanho_total = 0
+        paginas_atual = []
 
-        while dpi_atual >= dpi_min:
-            imagens = convert_from_bytes(pdf_bytes, dpi=dpi_atual)
-            partes = []
-            paginas_atual = []
-            tamanho_atual = 0
+        for i, imagem in enumerate(imagens):
+            temp_buffer = io.BytesIO()
+            imagem.save(temp_buffer, format="PDF")
+            tamanho_pagina = len(temp_buffer.getvalue())
 
-            for imagem in imagens:
-                buffer_temp = io.BytesIO()
-                imagem.save(buffer_temp, format="PDF", quality=qualidade_atual)
-                tamanho_pagina = len(buffer_temp.getvalue())
+            if (tamanho_total + tamanho_pagina) > (max_mb * 1024 * 1024):
+                if paginas_atual:
+                    parte_buffer = io.BytesIO()
+                    paginas_atual[0].save(parte_buffer, format='PDF', save_all=True, append_images=paginas_atual[1:])
+                    partes.append(parte_buffer.getvalue())
+                paginas_atual = [imagem]
+                tamanho_total = tamanho_pagina
+            else:
+                paginas_atual.append(imagem)
+                tamanho_total += tamanho_pagina
 
-                if (tamanho_atual + tamanho_pagina) > (max_mb * 1024 * 1024):
-                    if paginas_atual:
-                        buffer_parte = io.BytesIO()
-                        paginas_atual[0].save(
-                            buffer_parte, format="PDF", save_all=True,
-                            append_images=paginas_atual[1:], quality=qualidade_atual
-                        )
-                        partes.append(buffer_parte.getvalue())
+        if paginas_atual:
+            parte_buffer = io.BytesIO()
+            paginas_atual[0].save(parte_buffer, format='PDF', save_all=True, append_images=paginas_atual[1:])
+            partes.append(parte_buffer.getvalue())
 
-                    paginas_atual = [imagem]
-                    tamanho_atual = tamanho_pagina
-                else:
-                    paginas_atual.append(imagem)
-                    tamanho_atual += tamanho_pagina
-
-            # Salvar a última parte
-            if paginas_atual:
-                buffer_parte = io.BytesIO()
-                paginas_atual[0].save(
-                    buffer_parte, format="PDF", save_all=True,
-                    append_images=paginas_atual[1:], quality=qualidade_atual
-                )
-                partes.append(buffer_parte.getvalue())
-
-            # ✅ Aqui está o controle correto: só retorna se o número de partes está dentro do limite
-            if len(partes) <= max_partes:
-                return partes
-
-            # Se ultrapassou, reduz a qualidade e tenta novamente
-            dpi_atual -= 50
-            qualidade_atual = max(50, qualidade_atual - 10)
-
-        # Se não foi possível dividir com qualidade reduzida
-        raise ValueError("Não foi possível dividir o PDF em até 10 partes de 3MB, mesmo com qualidade reduzida.")
+        return partes
 
     def preprocess_image(image):
         gray = image.convert("L")  # Grayscale
@@ -160,7 +134,7 @@ def run_ai_pdf():
         total_upload_size_mb = total_upload_size / (1024 * 1024)
         
         if total_upload_size_mb > 1000:  # Mais de 1GB
-            st.error(f"❌ Arquivos muito grandes detectados. Tamanho total: {total_upload_size_mb:.1f} MB. Recomendamos processar arquivos menores.")
+            st.error("❌ Arquivos muito grandes detectados. Tamanho total: {:.1f} MB. Recomendamos processar arquivos menores.")
             return
         
         # Resetar arquivos para leitura
@@ -193,14 +167,9 @@ def run_ai_pdf():
             
             # REDUZIR SE NECESSÁRIO
             if tamanho_mb > 3:
-                st.warning(f"⚠️ Arquivo excede 3MB ({tamanho_mb:.2f} MB). Tentando dividir e reduzir qualidade automaticamente...")
-
-                try:
-                    partes_pdf = reduzir_ou_dividir_pdf(original_pdf_bytes, max_mb=3, max_partes=10)
-                    compactados += 1
-                except ValueError as e:
-                    st.error(f"❌ Erro ao processar PDF: {e}")
-                    continue
+                st.warning(f"⚠️ Arquivo excede 3MB ({tamanho_mb:.2f} MB). Reduzindo e dividindo se necessário...")
+                partes_pdf = reduzir_ou_dividir_pdf(original_pdf_bytes)
+                compactados += 1
             else:
                 partes_pdf = [original_pdf_bytes]
 
@@ -337,7 +306,7 @@ def run_ai_pdf():
     # RODAPÉ
     footer_html = """
     <div style='text-align: center;'>
-    <p>Developed by EDS Tecnologia da Informação - <small>v8 18/08/2025</small></p>
+    <p>Developed by EDS Tecnologia da Informação - <small>v7 14/08/2025</small></p>
     </div>
     """
     st.markdown(footer_html, unsafe_allow_html=True)
