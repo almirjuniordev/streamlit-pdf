@@ -72,9 +72,9 @@ def run_ai_pdf():
         match = re.search(pattern, text, re.IGNORECASE)
         return match.group(1) if match else None
 
-    def reduzir_ou_dividir_pdf(pdf_bytes, max_mb=3, max_partes=10, dpi_inicial=300, dpi_min=100, qualidade_jpeg=95):
+    def reduzir_ou_dividir_pdf(pdf_bytes, max_mb=200, max_partes=10, dpi_inicial=300, dpi_min=100, qualidade_jpeg=95):
         """
-        Divide o PDF em partes de até `max_mb` MB.
+        Divide o PDF em partes de até `max_mb` MB (padrão: 200MB).
         Gera apenas o número necessário de partes, com máximo de `max_partes`.
         Reduz qualidade automaticamente se necessário.
         """
@@ -191,12 +191,12 @@ def run_ai_pdf():
             else:
                 st.warning("⚠️ Número 'Nº Guia no Prestador:' não encontrado na primeira página.")
             
-            # REDUZIR SE NECESSÁRIO
-            if tamanho_mb > 3:
-                st.warning(f"⚠️ Arquivo excede 3MB ({tamanho_mb:.2f} MB). Tentando dividir e reduzir qualidade automaticamente...")
+                                # REDUZIR SE NECESSÁRIO
+            if tamanho_mb > 200:
+                st.warning(f"⚠️ Arquivo excede 200MB ({tamanho_mb:.2f} MB). Tentando dividir e reduzir qualidade automaticamente...")
 
                 try:
-                    partes_pdf = reduzir_ou_dividir_pdf(original_pdf_bytes, max_mb=3, max_partes=10)
+                    partes_pdf = reduzir_ou_dividir_pdf(original_pdf_bytes, max_mb=200, max_partes=10)
                     compactados += 1
                 except ValueError as e:
                     st.error(f"❌ Erro ao processar PDF: {e}")
