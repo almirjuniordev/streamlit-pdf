@@ -271,27 +271,89 @@ def run_ai_pdf():
         if total_size_mb > 100:  # Mais de 100MB
             st.warning("⚠️ Arquivos muito grandes detectados. Recomendamos download individual para melhor performance.")
         
-        # Botão para download de todos os arquivos (com verificação de tamanho)
-        if total_size_mb < 500:  # Limite de 500MB para ZIP
-            if st.button("📦 Download de Todos os Arquivos (ZIP)"):
-                import zipfile
-                
-                with st.spinner("Criando arquivo ZIP..."):
-                    # Criar arquivo ZIP em memória
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for file_info in st.session_state["processed_files"]:
-                            zip_file.writestr(file_info['nome'], file_info['dados'])
+        # Opções de download baseadas no tamanho
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Download rápido (sem compressão) para arquivos menores
+            if total_size_mb < 100:  # Menos de 100MB
+                if st.button("⚡ Download Rápido (ZIP sem compressão)"):
+                    import zipfile
                     
-                    zip_buffer.seek(0)
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
                     
-                    # Botão de download do ZIP
-                    st.download_button(
-                        label="💾 Download ZIP Completo",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"{st.session_state['nome_pasta']}_processados.zip",
-                        mime="application/zip"
-                    )
+                    try:
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_STORED) as zip_file:  # Sem compressão
+                            total_files = len(st.session_state["processed_files"])
+                            
+                            for i, file_info in enumerate(st.session_state["processed_files"]):
+                                progress = (i + 1) / total_files
+                                progress_bar.progress(progress)
+                                status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
+                                zip_file.writestr(file_info['nome'], file_info['dados'])
+                        
+                        zip_buffer.seek(0)
+                        progress_bar.progress(1.0)
+                        status_text.text("✅ ZIP criado com sucesso!")
+                        
+                        st.download_button(
+                            label="💾 Download ZIP Rápido",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"{st.session_state['nome_pasta']}_rapido.zip",
+                            mime="application/zip"
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"❌ Erro ao criar ZIP: {str(e)}")
+                    finally:
+                        progress_bar.empty()
+                        status_text.empty()
+        
+        with col2:
+            # Download comprimido para arquivos maiores
+            if total_size_mb < 500:  # Limite de 500MB para ZIP
+                if st.button("📦 Download de Todos os Arquivos (ZIP)"):
+                    import zipfile
+                    
+                    # Mostrar progresso detalhado
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    try:
+                        # Criar arquivo ZIP em memória com compressão otimizada
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
+                            total_files = len(st.session_state["processed_files"])
+                            
+                            for i, file_info in enumerate(st.session_state["processed_files"]):
+                                # Atualizar progresso
+                                progress = (i + 1) / total_files
+                                progress_bar.progress(progress)
+                                status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
+                                
+                                # Adicionar arquivo ao ZIP
+                                zip_file.writestr(file_info['nome'], file_info['dados'])
+                        
+                        zip_buffer.seek(0)
+                        progress_bar.progress(1.0)
+                        status_text.text("✅ ZIP criado com sucesso!")
+                        
+                        # Botão de download do ZIP
+                        st.download_button(
+                            label="💾 Download ZIP Completo",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"{st.session_state['nome_pasta']}_processados.zip",
+                            mime="application/zip"
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"❌ Erro ao criar ZIP: {str(e)}")
+                    finally:
+                        # Limpar indicadores de progresso
+                        progress_bar.empty()
+                        status_text.empty()
         else:
             st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
         
