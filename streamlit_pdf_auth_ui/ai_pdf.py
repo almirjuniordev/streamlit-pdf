@@ -354,8 +354,8 @@ def run_ai_pdf():
                         # Limpar indicadores de progresso
                         progress_bar.empty()
                         status_text.empty()
-        else:
-            st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
+            else:
+                st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
         
         # Download individual de cada arquivo
         st.subheader("📄 Download Individual")
