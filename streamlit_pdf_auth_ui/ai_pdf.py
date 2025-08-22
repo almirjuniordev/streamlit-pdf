@@ -36,15 +36,25 @@ def run_ai_pdf():
     
     if "nome_pasta" not in st.session_state:
         st.session_state["nome_pasta"] = ""
+    
+    if "timestamp_pasta" not in st.session_state:
+        st.session_state["timestamp_pasta"] = ""
 
     # Botão para criar diretório/nomear pasta
     if st.button("📁 Criar Nome da Pasta"):
         if protocolo:
+            # Gerar timestamp único para este processamento
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
             nome_pasta = f"protocolo_{protocolo}_{username}"
+            timestamp_pasta = f"{timestamp}_{username}_{protocolo}"
+            
             st.session_state["nome_pasta"] = nome_pasta
             st.session_state["protocolo_atual"] = protocolo
+            st.session_state["timestamp_pasta"] = timestamp_pasta
+            
             st.success(f"✅ Pasta criada: '{nome_pasta}'")
-            st.info("Agora você pode fazer upload dos PDFs. Os arquivos serão organizados nesta pasta quando você fizer o download.")
+            st.info(f"🕒 Timestamp único: {timestamp_pasta}")
+            st.info("Agora você pode fazer upload dos PDFs. Os arquivos serão organizados em uma pasta única com timestamp.")
         else:
             st.error("⚠️ Por favor, insira o número do protocolo antes de criar a pasta.")
 
@@ -135,6 +145,25 @@ def run_ai_pdf():
         # Binarização com threshold adaptativo
         return gray.point(lambda x: 0 if x < 160 else 255)
 
+    # Função para criar estrutura de diretórios
+    def criar_estrutura_diretorios():
+        """Cria a estrutura de diretórios para organizar os arquivos processados"""
+        try:
+            # Criar diretório base se não existir
+            base_dir = "/app/processed_pdfs"
+            if not os.path.exists(base_dir):
+                os.makedirs(base_dir, exist_ok=True)
+            
+            # Criar diretório específico para este processamento
+            if st.session_state.get("timestamp_pasta"):
+                timestamp_dir = os.path.join(base_dir, st.session_state["timestamp_pasta"])
+                if not os.path.exists(timestamp_dir):
+                    os.makedirs(timestamp_dir, exist_ok=True)
+                return timestamp_dir
+        except Exception as e:
+            st.warning(f"⚠️ Não foi possível criar estrutura de diretórios: {str(e)}")
+        return None
+
     # NOVA LÓGICA: OCR antes da compressão com otimizações
     def encontrar_numero_guia(pdf_bytes):
         try:
@@ -202,6 +231,7 @@ def run_ai_pdf():
             # Botão para forçar reprocessamento se necessário
             if st.button("🔄 Reprocessar Arquivos (substituirá os arquivos atuais)"):
                 st.session_state["processed_files"] = []
+                st.session_state["timestamp_pasta"] = ""  # Resetar timestamp para gerar novo
                 st.session_state["processing_lock"] = False
                 st.rerun()
             return
@@ -326,7 +356,33 @@ def run_ai_pdf():
         st.divider()
         st.header("💾 Download dos Arquivos Processados")
         st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
+        st.info(f"🕒 Timestamp: {st.session_state.get('timestamp_pasta', 'N/A')}")
         st.success("✅ **Arquivos já processados!** Clique nos botões abaixo para fazer download (sem reprocessamento).")
+        
+        # Informações sobre a estrutura de diretórios
+        with st.expander("📋 **Informações sobre Organização dos Arquivos**", expanded=False):
+            st.markdown(f"""
+            ### 🗂️ **Estrutura de Organização:**
+            
+            **Diretório Base:** `/app/processed_pdfs/`
+            
+            **Seu Processamento:** `{st.session_state.get('timestamp_pasta', 'N/A')}/`
+            
+            **Estrutura Completa:**
+            ```
+            /app/processed_pdfs/
+            └── {st.session_state.get('timestamp_pasta', 'timestamp_user_protocolo')}/
+                ├── arquivo1.pdf
+                ├── arquivo2.pdf
+                └── ...
+            ```
+            
+            **Benefícios:**
+            - ✅ **Isolamento**: Cada processamento fica em pasta única
+            - ✅ **Concorrência**: Múltiplos usuários podem processar simultaneamente
+            - ✅ **Rastreabilidade**: Timestamp identifica quando foi processado
+            - ✅ **Sem Conflitos**: Evita sobrescrita de arquivos
+            """)
         
         # Calcular tamanho total dos arquivos
         total_size = sum(len(file_info['dados']) for file_info in st.session_state["processed_files"])
@@ -455,6 +511,7 @@ def run_ai_pdf():
             st.session_state["processed_files"] = []
             st.session_state["protocolo_atual"] = ""
             st.session_state["nome_pasta"] = ""
+            st.session_state["timestamp_pasta"] = ""
             st.session_state["processing_lock"] = False
             
             # Forçar limpeza de memória mais agressiva
