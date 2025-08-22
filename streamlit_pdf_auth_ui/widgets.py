@@ -265,9 +265,14 @@ class __login__:
             main_page()
 
     def render_basic_interface(self):
+        # Ocultar menu do Streamlit para usuários não-admin
+        self.hide_menu_for_non_admin()
+        
         selected_option = st.session_state.get('SELECTED_MENU')
         if selected_option == 'PDF Upload':
             main_page()
+
+
 
     def admin_nav_sidebar(self):
         main_page_sidebar = st.sidebar.empty()
@@ -368,6 +373,26 @@ class __login__:
         st.markdown(""" <style>
         #MainMenu {visibility: hidden;}
         </style> """, unsafe_allow_html=True)
+
+    def hide_menu_for_non_admin(self) -> None:
+        """Oculta o menu principal do Streamlit para usuários não-admin"""
+        if st.session_state.get('USER_TYPE') != 'admin':
+            st.markdown(""" <style>
+            /* Ocultar menu principal do Streamlit */
+            #MainMenu {visibility: hidden !important;}
+            
+            /* Ocultar header com menu de três pontos */
+            header {visibility: hidden !important;}
+            
+            /* Ocultar footer */
+            footer {visibility: hidden !important;}
+            
+            /* Ocultar botão de menu hambúrguer */
+            .css-1d391kg {display: none !important;}
+            
+            /* Ocultar menu de deploy e configurações */
+            .css-1d391kg, .css-1d391kg * {display: none !important;}
+            </style> """, unsafe_allow_html=True)
 
     def hide_footer(self) -> None:
         st.markdown(""" <style>
