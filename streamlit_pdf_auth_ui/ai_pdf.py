@@ -49,6 +49,9 @@ def run_ai_pdf():
             st.error("⚠️ Por favor, insira o número do protocolo antes de criar a pasta.")
 
     uploaded_files = st.file_uploader("Faça upload de PDFs escaneados", type=["pdf"], accept_multiple_files=True)
+    
+    # Aviso sobre uso simultâneo
+    st.info("💡 **Dica**: Para melhor performance, evite processar múltiplos PDFs simultaneamente em diferentes abas.")
 
     # FUNÇÕES
     def preprocess_variants(image):
@@ -132,20 +135,57 @@ def run_ai_pdf():
         # Binarização com threshold adaptativo
         return gray.point(lambda x: 0 if x < 160 else 255)
 
-    # NOVA LÓGICA: OCR antes da compressão
+    # NOVA LÓGICA: OCR antes da compressão com otimizações
     def encontrar_numero_guia(pdf_bytes):
-        imagens = convert_from_bytes(pdf_bytes, dpi=300)
-        for page_index, imagem in enumerate(imagens):
-            angles = [0, 90, -90, 180]
-            for angle in angles:
-                rotated = imagem.rotate(angle, expand=True)
+        try:
+            # Reduzir DPI para economizar memória e CPU
+            imagens = convert_from_bytes(pdf_bytes, dpi=200)  # Era 300, agora 200
+            
+            # Limitar a busca apenas na primeira página para velocidade
+            for page_index, imagem in enumerate(imagens[:1]):  # Só primeira página
+                angles = [0, 90, -90, 180]
+                for angle in angles:
+                    rotated = imagem.rotate(angle, expand=True)
 
-                for variant in preprocess_variants(rotated):
-                    config = r'--oem 3 --psm 3'
-                    text = pytesseract.image_to_string(variant, lang="por+eng", config=config)
-                    numero = extract_card_number(text)
-                    if numero:
-                        return numero, len(imagens)
+                    for variant in preprocess_variants(rotated):
+                        # Configuração otimizada para velocidade
+                        config = r'--oem 1 --psm 6'  # Mais rápido que oem 3
+                        text = pytesseract.image_to_string(variant, lang="por+eng", config=config)
+                        numero = extract_card_number(text)
+                        if numero:
+                            return numero, len(imagens)
+            
+            # Se não encontrou na primeira página, tenta segunda (com timeout)
+            if len(imagens) > 1:
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("OCR timeout")
+                
+                # Timeout de 30 segundos para evitar travamento
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(30)
+                
+                try:
+                    imagem = imagens[1]
+                    angles = [0, 90, -90, 180]
+                    for angle in angles:
+                        rotated = imagem.rotate(angle, expand=True)
+                        for variant in preprocess_variants(rotated):
+                            config = r'--oem 1 --psm 6'
+                            text = pytesseract.image_to_string(variant, lang="por+eng", config=config)
+                            numero = extract_card_number(text)
+                            if numero:
+                                signal.alarm(0)  # Cancelar timeout
+                                return numero, len(imagens)
+                except TimeoutError:
+                    st.warning("⚠️ Timeout no OCR da segunda página. Continuando...")
+                finally:
+                    signal.alarm(0)  # Cancelar timeout
+                    
+        except Exception as e:
+            st.error(f"❌ Erro no OCR: {str(e)}")
+            
         return None, len(imagens)
 
     # PROCESSAMENTO PRINCIPAL
@@ -154,6 +194,17 @@ def run_ai_pdf():
         if not st.session_state["nome_pasta"]:
             st.error("⚠️ Crie o nome da pasta antes de processar os arquivos.")
             return
+        
+        # Controle de concorrência - verificar se já está processando
+        if "processing_lock" not in st.session_state:
+            st.session_state["processing_lock"] = False
+        
+        if st.session_state["processing_lock"]:
+            st.warning("⚠️ Processamento em andamento. Aguarde a conclusão antes de iniciar outro.")
+            return
+        
+        # Ativar lock de processamento
+        st.session_state["processing_lock"] = True
         
         # Verificar tamanho total dos arquivos antes do processamento
         total_upload_size = sum(len(file.read()) for file in uploaded_files)
@@ -249,6 +300,9 @@ def run_ai_pdf():
         elapsed_time = time.time() - start_time
         minutes, seconds = divmod(int(elapsed_time), 60)
         st.info(f"🕒 Tempo total de execução: **{minutes} min {seconds} seg**")
+        
+        # Liberar lock de processamento
+        st.session_state["processing_lock"] = False
 
     elif uploaded_files and not st.session_state["nome_pasta"]:
         st.error("⚠️ Crie o nome da pasta antes de processar os arquivos.")
@@ -388,10 +442,15 @@ def run_ai_pdf():
             st.session_state["processed_files"] = []
             st.session_state["protocolo_atual"] = ""
             st.session_state["nome_pasta"] = ""
+            st.session_state["processing_lock"] = False
             
-            # Forçar limpeza de memória
+            # Forçar limpeza de memória mais agressiva
             import gc
             gc.collect()
+            
+            # Limpar cache do Streamlit
+            st.cache_data.clear()
+            st.cache_resource.clear()
             
             st.success("✅ Arquivos removidos da memória com sucesso!")
             st.rerun()
