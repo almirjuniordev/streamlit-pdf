@@ -195,6 +195,17 @@ def run_ai_pdf():
             st.error("⚠️ Crie o nome da pasta antes de processar os arquivos.")
             return
         
+        # VERIFICAR SE JÁ EXISTEM ARQUIVOS PROCESSADOS - EVITAR REPROCESSAMENTO
+        if st.session_state.get("processed_files", []):
+            st.info("✅ **Arquivos já processados!** Use a seção de download abaixo para baixar os arquivos.")
+            
+            # Botão para forçar reprocessamento se necessário
+            if st.button("🔄 Reprocessar Arquivos (substituirá os arquivos atuais)"):
+                st.session_state["processed_files"] = []
+                st.session_state["processing_lock"] = False
+                st.rerun()
+            return
+        
         # Controle de concorrência - verificar se já está processando
         if "processing_lock" not in st.session_state:
             st.session_state["processing_lock"] = False
