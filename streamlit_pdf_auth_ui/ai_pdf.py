@@ -406,6 +406,12 @@ def run_ai_pdf():
             arquivos_validos = sum(1 for file_info in processed_files if file_info.get('dados'))
             if arquivos_validos != len(processed_files):
                 st.warning(f"⚠️ Apenas {arquivos_validos} de {len(processed_files)} arquivos têm dados válidos.")
+            
+            # Debug: mostrar informações detalhadas dos arquivos
+            st.info("🔍 **Debug - Informações dos arquivos processados:**")
+            for i, file_info in enumerate(processed_files):
+                dados_size = len(file_info.get('dados', b''))
+                st.write(f"  - Arquivo {i+1}: {file_info['nome']} | Dados: {dados_size} bytes | Tipo: {file_info['tipo']}")
 
         # RESUMO
         total = len(uploaded_files)
@@ -539,63 +545,40 @@ def run_ai_pdf():
             with col2:
                 # Download comprimido para arquivos maiores
                 if total_size_mb < 500:  # Limite de 500MB para ZIP
-                    if st.button("📦 Download de Todos os Arquivos (ZIP)"):
-                        import zipfile
-                        
-                        # Mostrar progresso detalhado
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        try:
-                            # Verificar se há arquivos para processar
-                            if not st.session_state["processed_files"]:
-                                st.error("❌ Nenhum arquivo processado encontrado para download.")
-                                return
+                    import zipfile
+                    
+                    # Criar arquivo ZIP em memória com compressão otimizada
+                    zip_buffer = io.BytesIO()
+                    try:
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
+                            total_files = len(st.session_state["processed_files"])
                             
-                            # Criar arquivo ZIP em memória com compressão otimizada
-                            zip_buffer = io.BytesIO()
-                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
-                                total_files = len(st.session_state["processed_files"])
+                            for i, file_info in enumerate(st.session_state["processed_files"]):
+                                # Verificar se os dados do arquivo existem
+                                if 'dados' not in file_info or not file_info['dados']:
+                                    st.warning(f"⚠️ Arquivo {file_info['nome']} não possui dados válidos.")
+                                    continue
                                 
-                                for i, file_info in enumerate(st.session_state["processed_files"]):
-                                    # Atualizar progresso
-                                    progress = (i + 1) / total_files
-                                    progress_bar.progress(progress)
-                                    status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
-                                    
-                                    # Verificar se os dados do arquivo existem
-                                    if 'dados' not in file_info or not file_info['dados']:
-                                        st.warning(f"⚠️ Arquivo {file_info['nome']} não possui dados válidos.")
-                                        continue
-                                    
-                                    # Adicionar arquivo ao ZIP
-                                    zip_file.writestr(file_info['nome'], file_info['dados'])
-                            
-                            zip_buffer.seek(0)
-                            progress_bar.progress(1.0)
-                            status_text.text("✅ ZIP criado com sucesso!")
-                            
-                            # Verificar se o ZIP foi criado com sucesso
-                            zip_data = zip_buffer.getvalue()
-                            if len(zip_data) == 0:
-                                st.error("❌ Erro: ZIP vazio. Verifique se os arquivos foram processados corretamente.")
-                                return
-                            
+                                # Adicionar arquivo ao ZIP
+                                zip_file.writestr(file_info['nome'], file_info['dados'])
+                        
+                        zip_buffer.seek(0)
+                        zip_data = zip_buffer.getvalue()
+                        
+                        if len(zip_data) > 0:
                             # Botão de download do ZIP
                             st.download_button(
-                                label="💾 Download ZIP Completo",
+                                label="📦 Download de Todos os Arquivos (ZIP)",
                                 data=zip_data,
                                 file_name=f"{st.session_state['nome_pasta']}_processados.zip",
                                 mime="application/zip"
                             )
+                        else:
+                            st.error("❌ Erro: ZIP vazio. Verifique se os arquivos foram processados corretamente.")
                             
-                        except Exception as e:
-                            st.error(f"❌ Erro ao criar ZIP: {str(e)}")
-                            st.error(f"Detalhes do erro: {type(e).__name__}")
-                        finally:
-                            # Limpar indicadores de progresso
-                            progress_bar.empty()
-                            status_text.empty()
+                    except Exception as e:
+                        st.error(f"❌ Erro ao criar ZIP: {str(e)}")
+                        st.error(f"Detalhes do erro: {type(e).__name__}")
                 else:
                     st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
             
@@ -667,57 +650,38 @@ def run_ai_pdf():
             total_size_mb = total_size / (1024 * 1024)
             
             # Download ZIP simples
-            if st.button("📦 Download de Todos os Arquivos (ZIP)"):
-                import zipfile
-                
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                try:
-                    # Verificar se há arquivos para processar
-                    if not st.session_state["processed_files"]:
-                        st.error("❌ Nenhum arquivo processado encontrado para download.")
-                        return
+            import zipfile
+            
+            # Criar ZIP em memória
+            zip_buffer = io.BytesIO()
+            try:
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
+                    total_files = len(st.session_state["processed_files"])
                     
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
-                        total_files = len(st.session_state["processed_files"])
+                    for i, file_info in enumerate(st.session_state["processed_files"]):
+                        # Verificar se os dados do arquivo existem
+                        if 'dados' not in file_info or not file_info['dados']:
+                            st.warning(f"⚠️ Arquivo {file_info['nome']} não possui dados válidos.")
+                            continue
                         
-                        for i, file_info in enumerate(st.session_state["processed_files"]):
-                            progress = (i + 1) / total_files
-                            progress_bar.progress(progress)
-                            status_text.text(f"Preparando arquivo {i+1}/{total_files}: {file_info['nome']}")
-                            
-                            # Verificar se os dados do arquivo existem
-                            if 'dados' not in file_info or not file_info['dados']:
-                                st.warning(f"⚠️ Arquivo {file_info['nome']} não possui dados válidos.")
-                                continue
-                            
-                            zip_file.writestr(file_info['nome'], file_info['dados'])
-                    
-                    zip_buffer.seek(0)
-                    progress_bar.progress(1.0)
-                    status_text.text("✅ Download pronto!")
-                    
-                    # Verificar se o ZIP foi criado com sucesso
-                    zip_data = zip_buffer.getvalue()
-                    if len(zip_data) == 0:
-                        st.error("❌ Erro: ZIP vazio. Verifique se os arquivos foram processados corretamente.")
-                        return
-                    
+                        zip_file.writestr(file_info['nome'], file_info['dados'])
+                
+                zip_buffer.seek(0)
+                zip_data = zip_buffer.getvalue()
+                
+                if len(zip_data) > 0:
                     st.download_button(
-                        label="💾 Download ZIP",
+                        label="📦 Download de Todos os Arquivos (ZIP)",
                         data=zip_data,
                         file_name=f"arquivos_processados.zip",
                         mime="application/zip"
                     )
+                else:
+                    st.error("❌ Erro: ZIP vazio. Verifique se os arquivos foram processados corretamente.")
                     
-                except Exception as e:
-                    st.error(f"❌ Erro ao criar download: {str(e)}")
-                    st.error(f"Detalhes do erro: {type(e).__name__}")
-                finally:
-                    progress_bar.empty()
-                    status_text.empty()
+            except Exception as e:
+                st.error(f"❌ Erro ao criar ZIP: {str(e)}")
+                st.error(f"Detalhes do erro: {type(e).__name__}")
             
             # Download individual simples
             st.subheader("📄 Download Individual")
