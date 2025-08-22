@@ -427,214 +427,295 @@ def run_ai_pdf():
     # SEÇÃO DE DOWNLOAD DOS ARQUIVOS PROCESSADOS
     # Verificar se há arquivos processados disponíveis para download
     if st.session_state.get("processed_files", []):
-        st.divider()
-        st.header("💾 Download dos Arquivos Processados")
-        st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
-        st.info(f"🕒 Timestamp: {st.session_state.get('timestamp_pasta', 'N/A')}")
-        st.success("✅ **Arquivos já processados!** Clique nos botões abaixo para fazer download (sem reprocessamento).")
-    else:
-        # Mostrar seção de download mesmo sem arquivos para orientar o usuário
-        st.divider()
-        st.header("💾 Download dos Arquivos Processados")
-        st.warning("⚠️ **Nenhum arquivo processado encontrado.**")
-        st.info("📋 **Para ver arquivos para download:**")
-        st.markdown("""
-        1. **Crie o nome da pasta** usando o botão "📁 Criar Nome da Pasta"
-        2. **Faça upload dos PDFs** no campo acima
-        3. **Aguarde o processamento** ser concluído
-        4. **A seção de download aparecerá automaticamente** com os arquivos processados
-        """)
-        st.info("💡 **Dica:** Se você acabou de processar arquivos mas não vê esta seção, pode haver um erro no processamento. Verifique as mensagens acima.")
+        # Obter tipo de usuário
+        user_type = st.session_state.get('USER_TYPE', 'basic')
         
-        # Informações sobre a estrutura de diretórios
-        with st.expander("📋 **Informações sobre Organização dos Arquivos**", expanded=False):
-            st.markdown(f"""
-            ### 🗂️ **Estrutura de Organização:**
+        if user_type == 'admin':
+            # INTERFACE COMPLETA PARA ADMIN
+            st.divider()
+            st.header("💾 Download dos Arquivos Processados")
+            st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
+            st.info(f"🕒 Timestamp: {st.session_state.get('timestamp_pasta', 'N/A')}")
+            st.success("✅ **Arquivos já processados!** Clique nos botões abaixo para fazer download (sem reprocessamento).")
             
-            **Diretório Base:** `/app/processed_pdfs/`
+            # Informações sobre a estrutura de diretórios
+            with st.expander("📋 **Informações sobre Organização dos Arquivos**", expanded=False):
+                st.markdown(f"""
+                ### 🗂️ **Estrutura de Organização:**
+                
+                **Diretório Base:** `/app/processed_pdfs/`
+                
+                **Seu Processamento:** `{st.session_state.get('timestamp_pasta', 'N/A')}/`
+                
+                **Estrutura Completa:**
+                ```
+                /app/processed_pdfs/
+                └── {st.session_state.get('timestamp_pasta', 'timestamp_user_protocolo')}/
+                    ├── arquivo1.pdf
+                    ├── arquivo2.pdf
+                    └── ...
+                ```
+                
+                **Benefícios:**
+                - ✅ **Isolamento**: Cada processamento fica em pasta única
+                - ✅ **Concorrência**: Múltiplos usuários podem processar simultaneamente
+                - ✅ **Rastreabilidade**: Timestamp identifica quando foi processado
+                - ✅ **Sem Conflitos**: Evita sobrescrita de arquivos
+                
+                ---
+                
+                ### 🧹 **Limpeza Automática:**
+                
+                **Frequência:** Diária às 00:00 (meia-noite)
+                
+                **Critério:** Arquivos com mais de 24 horas são removidos automaticamente
+                
+                **Objetivo:** Manter o servidor limpo e otimizar espaço de armazenamento
+                
+                **Segurança:** Apenas arquivos antigos são removidos, arquivos recentes são preservados
+                """)
             
-            **Seu Processamento:** `{st.session_state.get('timestamp_pasta', 'N/A')}/`
+            # Calcular tamanho total dos arquivos
+            total_size = sum(len(file_info['dados']) for file_info in st.session_state["processed_files"])
+            total_size_mb = total_size / (1024 * 1024)
             
-            **Estrutura Completa:**
-            ```
-            /app/processed_pdfs/
-            └── {st.session_state.get('timestamp_pasta', 'timestamp_user_protocolo')}/
-                ├── arquivo1.pdf
-                ├── arquivo2.pdf
-                └── ...
-            ```
+            st.info(f"📏 Tamanho total: {total_size_mb:.2f} MB")
             
-            **Benefícios:**
-            - ✅ **Isolamento**: Cada processamento fica em pasta única
-            - ✅ **Concorrência**: Múltiplos usuários podem processar simultaneamente
-            - ✅ **Rastreabilidade**: Timestamp identifica quando foi processado
-            - ✅ **Sem Conflitos**: Evita sobrescrita de arquivos
+            # Aviso para arquivos grandes
+            if total_size_mb > 100:  # Mais de 100MB
+                st.warning("⚠️ Arquivos muito grandes detectados. Recomendamos download individual para melhor performance.")
             
-            ---
+            # Opções de download baseadas no tamanho
+            col1, col2 = st.columns(2)
             
-            ### 🧹 **Limpeza Automática:**
-            
-            **Frequência:** Diária às 00:00 (meia-noite)
-            
-            **Critério:** Arquivos com mais de 24 horas são removidos automaticamente
-            
-            **Objetivo:** Manter o servidor limpo e otimizar espaço de armazenamento
-            
-            **Segurança:** Apenas arquivos antigos são removidos, arquivos recentes são preservados
-            """)
-        
-        # Calcular tamanho total dos arquivos
-        total_size = sum(len(file_info['dados']) for file_info in st.session_state["processed_files"])
-        total_size_mb = total_size / (1024 * 1024)
-        
-        st.info(f"📏 Tamanho total: {total_size_mb:.2f} MB")
-        
-        # Aviso para arquivos grandes
-        if total_size_mb > 100:  # Mais de 100MB
-            st.warning("⚠️ Arquivos muito grandes detectados. Recomendamos download individual para melhor performance.")
-        
-        # Opções de download baseadas no tamanho
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Download rápido (sem compressão) para arquivos menores
-            if total_size_mb < 100:  # Menos de 100MB
-                if st.button("⚡ Download Rápido (ZIP sem compressão)"):
-                    import zipfile
-                    
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    try:
-                        zip_buffer = io.BytesIO()
-                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_STORED) as zip_file:  # Sem compressão
-                            total_files = len(st.session_state["processed_files"])
-                            
-                            for i, file_info in enumerate(st.session_state["processed_files"]):
-                                progress = (i + 1) / total_files
-                                progress_bar.progress(progress)
-                                status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
-                                zip_file.writestr(file_info['nome'], file_info['dados'])
-                        
-                        zip_buffer.seek(0)
-                        progress_bar.progress(1.0)
-                        status_text.text("✅ ZIP criado com sucesso!")
-                        
-                        st.download_button(
-                            label="💾 Download ZIP Rápido",
-                            data=zip_buffer.getvalue(),
-                            file_name=f"{st.session_state['nome_pasta']}_rapido.zip",
-                            mime="application/zip"
-                        )
-                        
-                    except Exception as e:
-                        st.error(f"❌ Erro ao criar ZIP: {str(e)}")
-                    finally:
-                        progress_bar.empty()
-                        status_text.empty()
-        
-        with col2:
-            # Download comprimido para arquivos maiores
-            if total_size_mb < 500:  # Limite de 500MB para ZIP
-                if st.button("📦 Download de Todos os Arquivos (ZIP)"):
-                    import zipfile
-                    
-                    # Mostrar progresso detalhado
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    try:
-                        # Criar arquivo ZIP em memória com compressão otimizada
-                        zip_buffer = io.BytesIO()
-                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
-                            total_files = len(st.session_state["processed_files"])
-                            
-                            for i, file_info in enumerate(st.session_state["processed_files"]):
-                                # Atualizar progresso
-                                progress = (i + 1) / total_files
-                                progress_bar.progress(progress)
-                                status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
-                                
-                                # Adicionar arquivo ao ZIP
-                                zip_file.writestr(file_info['nome'], file_info['dados'])
-                        
-                        zip_buffer.seek(0)
-                        progress_bar.progress(1.0)
-                        status_text.text("✅ ZIP criado com sucesso!")
-                        
-                        # Botão de download do ZIP
-                        st.download_button(
-                            label="💾 Download ZIP Completo",
-                            data=zip_buffer.getvalue(),
-                            file_name=f"{st.session_state['nome_pasta']}_processados.zip",
-                            mime="application/zip"
-                        )
-                        
-                    except Exception as e:
-                        st.error(f"❌ Erro ao criar ZIP: {str(e)}")
-                    finally:
-                        # Limpar indicadores de progresso
-                        progress_bar.empty()
-                        status_text.empty()
-            else:
-                st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
-        
-        # Download individual de cada arquivo
-        st.subheader("📄 Download Individual")
-        for i, file_info in enumerate(st.session_state["processed_files"]):
-            file_size_mb = len(file_info['dados']) / (1024 * 1024)
-            
-            col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
-                st.write(f"**{file_info['nome']}**")
-                if file_info['tipo'] == 'com_guia':
-                    st.success(f"Guia: {file_info['numero_guia']}")
-                else:
-                    st.warning("Sem número de guia")
+                # Download rápido (sem compressão) para arquivos menores
+                if total_size_mb < 100:  # Menos de 100MB
+                    if st.button("⚡ Download Rápido (ZIP sem compressão)"):
+                        import zipfile
+                        
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        try:
+                            zip_buffer = io.BytesIO()
+                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_STORED) as zip_file:  # Sem compressão
+                                total_files = len(st.session_state["processed_files"])
+                                
+                                for i, file_info in enumerate(st.session_state["processed_files"]):
+                                    progress = (i + 1) / total_files
+                                    progress_bar.progress(progress)
+                                    status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
+                                    zip_file.writestr(file_info['nome'], file_info['dados'])
+                            
+                            zip_buffer.seek(0)
+                            progress_bar.progress(1.0)
+                            status_text.text("✅ ZIP criado com sucesso!")
+                            
+                            st.download_button(
+                                label="💾 Download ZIP Rápido",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"{st.session_state['nome_pasta']}_rapido.zip",
+                                mime="application/zip"
+                            )
+                            
+                        except Exception as e:
+                            st.error(f"❌ Erro ao criar ZIP: {str(e)}")
+                        finally:
+                            progress_bar.empty()
+                            status_text.empty()
             
             with col2:
-                st.write(f"📏 {file_size_mb:.1f} MB")
+                # Download comprimido para arquivos maiores
+                if total_size_mb < 500:  # Limite de 500MB para ZIP
+                    if st.button("📦 Download de Todos os Arquivos (ZIP)"):
+                        import zipfile
+                        
+                        # Mostrar progresso detalhado
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        try:
+                            # Criar arquivo ZIP em memória com compressão otimizada
+                            zip_buffer = io.BytesIO()
+                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
+                                total_files = len(st.session_state["processed_files"])
+                                
+                                for i, file_info in enumerate(st.session_state["processed_files"]):
+                                    # Atualizar progresso
+                                    progress = (i + 1) / total_files
+                                    progress_bar.progress(progress)
+                                    status_text.text(f"Adicionando arquivo {i+1}/{total_files}: {file_info['nome']}")
+                                    
+                                    # Adicionar arquivo ao ZIP
+                                    zip_file.writestr(file_info['nome'], file_info['dados'])
+                            
+                            zip_buffer.seek(0)
+                            progress_bar.progress(1.0)
+                            status_text.text("✅ ZIP criado com sucesso!")
+                            
+                            # Botão de download do ZIP
+                            st.download_button(
+                                label="💾 Download ZIP Completo",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"{st.session_state['nome_pasta']}_processados.zip",
+                                mime="application/zip"
+                            )
+                            
+                        except Exception as e:
+                            st.error(f"❌ Erro ao criar ZIP: {str(e)}")
+                        finally:
+                            # Limpar indicadores de progresso
+                            progress_bar.empty()
+                            status_text.empty()
+                else:
+                    st.error("❌ Arquivo muito grande para download ZIP. Use download individual.")
             
-            with col3:
-                st.download_button(
-                    label="💾 Download",
-                    data=file_info['dados'],
-                    file_name=file_info['nome'],
-                    mime="application/pdf",
-                    key=f"download_{i}"
-                )
-        
-        # Botões de limpeza
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Botão para limpar arquivos processados da memória
-            if st.button("🗑️ Limpar Arquivos da Memória"):
-                # Limpar arquivos da memória
-                st.session_state["processed_files"] = []
-                st.session_state["protocolo_atual"] = ""
-                st.session_state["nome_pasta"] = ""
-                st.session_state["timestamp_pasta"] = ""
-                st.session_state["processing_lock"] = False
+            # Download individual de cada arquivo
+            st.subheader("📄 Download Individual")
+            for i, file_info in enumerate(st.session_state["processed_files"]):
+                file_size_mb = len(file_info['dados']) / (1024 * 1024)
                 
-                # Forçar limpeza de memória mais agressiva
-                import gc
-                gc.collect()
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"**{file_info['nome']}**")
+                    if file_info['tipo'] == 'com_guia':
+                        st.success(f"Guia: {file_info['numero_guia']}")
+                    else:
+                        st.warning("Sem número de guia")
                 
-                # Limpar cache do Streamlit
-                st.cache_data.clear()
-                st.cache_resource.clear()
+                with col2:
+                    st.write(f"📏 {file_size_mb:.1f} MB")
                 
-                st.success("✅ Arquivos removidos da memória com sucesso!")
+                with col3:
+                    st.download_button(
+                        label="💾 Download",
+                        data=file_info['dados'],
+                        file_name=file_info['nome'],
+                        mime="application/pdf",
+                        key=f"download_{i}"
+                    )
+            
+            # Botões de limpeza
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Botão para limpar arquivos processados da memória
+                if st.button("🗑️ Limpar Arquivos da Memória"):
+                    # Limpar arquivos da memória
+                    st.session_state["processed_files"] = []
+                    st.session_state["protocolo_atual"] = ""
+                    st.session_state["nome_pasta"] = ""
+                    st.session_state["timestamp_pasta"] = ""
+                    st.session_state["processing_lock"] = False
+                    
+                    # Forçar limpeza de memória mais agressiva
+                    import gc
+                    gc.collect()
+                    
+                    # Limpar cache do Streamlit
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    
+                    st.success("✅ Arquivos removidos da memória com sucesso!")
+            
+            with col2:
+                # Botão para limpeza manual do servidor (apenas para admin)
+                if st.button("🧹 Limpeza Manual do Servidor (Admin)"):
+                    try:
+                        limpar_arquivos_antigos()
+                        st.success("✅ Limpeza manual executada com sucesso!")
+                    except Exception as e:
+                        st.error(f"❌ Erro na limpeza manual: {str(e)}")
         
-        with col2:
-            # Botão para limpeza manual do servidor (apenas para admin)
-            if st.button("🧹 Limpeza Manual do Servidor (Admin)"):
+        else:
+            # INTERFACE SIMPLIFICADA PARA USUÁRIOS BÁSICOS
+            st.divider()
+            st.header("💾 Download dos Arquivos")
+            st.success("✅ **Arquivos processados com sucesso!**")
+            
+            # Calcular tamanho total dos arquivos
+            total_size = sum(len(file_info['dados']) for file_info in st.session_state["processed_files"])
+            total_size_mb = total_size / (1024 * 1024)
+            
+            # Download ZIP simples
+            if st.button("📦 Download de Todos os Arquivos (ZIP)"):
+                import zipfile
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
                 try:
-                    limpar_arquivos_antigos()
-                    st.success("✅ Limpeza manual executada com sucesso!")
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zip_file:
+                        total_files = len(st.session_state["processed_files"])
+                        
+                        for i, file_info in enumerate(st.session_state["processed_files"]):
+                            progress = (i + 1) / total_files
+                            progress_bar.progress(progress)
+                            status_text.text(f"Preparando arquivo {i+1}/{total_files}")
+                            zip_file.writestr(file_info['nome'], file_info['dados'])
+                    
+                    zip_buffer.seek(0)
+                    progress_bar.progress(1.0)
+                    status_text.text("✅ Download pronto!")
+                    
+                    st.download_button(
+                        label="💾 Download ZIP",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"arquivos_processados.zip",
+                        mime="application/zip"
+                    )
+                    
                 except Exception as e:
-                    st.error(f"❌ Erro na limpeza manual: {str(e)}")
+                    st.error(f"❌ Erro ao criar download: {str(e)}")
+                finally:
+                    progress_bar.empty()
+                    status_text.empty()
+            
+            # Download individual simples
+            st.subheader("📄 Download Individual")
+            for i, file_info in enumerate(st.session_state["processed_files"]):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"**{file_info['nome']}**")
+                with col2:
+                    st.download_button(
+                        label="💾 Download",
+                        data=file_info['dados'],
+                        file_name=file_info['nome'],
+                        mime="application/pdf",
+                        key=f"download_simple_{i}"
+                    )
+    
+    else:
+        # Quando não há arquivos processados
+        user_type = st.session_state.get('USER_TYPE', 'basic')
+        
+        if user_type == 'admin':
+            # Mostrar seção completa para admin
+            st.divider()
+            st.header("💾 Download dos Arquivos Processados")
+            st.warning("⚠️ **Nenhum arquivo processado encontrado.**")
+            st.info("📋 **Para ver arquivos para download:**")
+            st.markdown("""
+            1. **Crie o nome da pasta** usando o botão "📁 Criar Nome da Pasta"
+            2. **Faça upload dos PDFs** no campo acima
+            3. **Aguarde o processamento** ser concluído
+            4. **A seção de download aparecerá automaticamente** com os arquivos processados
+            """)
+            st.info("💡 **Dica:** Se você acabou de processar arquivos mas não vê esta seção, pode haver um erro no processamento. Verifique as mensagens acima.")
+        else:
+            # Interface simples para usuários básicos
+            st.divider()
+            st.header("💾 Download dos Arquivos")
+            st.info("📋 **Para baixar arquivos:**")
+            st.markdown("""
+            1. **Crie o nome da pasta** usando o botão "📁 Criar Nome da Pasta"
+            2. **Faça upload dos PDFs** no campo acima
+            3. **Aguarde o processamento** ser concluído
+            4. **Os botões de download aparecerão automaticamente**
+            """)
 
     # RODAPÉ
     footer_html = """
