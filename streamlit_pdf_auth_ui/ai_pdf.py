@@ -264,17 +264,8 @@ def run_ai_pdf():
                         if numero:
                             return numero, len(imagens)
             
-            # Se não encontrou na primeira página, tenta segunda (com timeout)
+            # Se não encontrou na primeira página, tenta segunda (sem timeout para evitar erro de signal)
             if len(imagens) > 1:
-                import signal
-                
-                def timeout_handler(signum, frame):
-                    raise TimeoutError("OCR timeout")
-                
-                # Timeout de 30 segundos para evitar travamento
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(30)
-                
                 try:
                     imagem = imagens[1]
                     angles = [0, 90, -90, 180]
@@ -285,12 +276,9 @@ def run_ai_pdf():
                             text = pytesseract.image_to_string(variant, lang="por+eng", config=config)
                             numero = extract_card_number(text)
                             if numero:
-                                signal.alarm(0)  # Cancelar timeout
                                 return numero, len(imagens)
-                except TimeoutError:
-                    st.warning("⚠️ Timeout no OCR da segunda página. Continuando...")
-                finally:
-                    signal.alarm(0)  # Cancelar timeout
+                except Exception as e:
+                    st.warning(f"⚠️ Erro no OCR da segunda página: {str(e)}. Continuando...")
                     
         except Exception as e:
             st.error(f"❌ Erro no OCR: {str(e)}")
@@ -422,6 +410,12 @@ def run_ai_pdf():
         minutes, seconds = divmod(int(elapsed_time), 60)
         st.info(f"🕒 Tempo total de execução: **{minutes} min {seconds} seg**")
         
+        # Verificar se há arquivos processados para mostrar seção de download
+        if processed_files:
+            st.success("✅ **Processamento concluído!** A seção de download aparecerá abaixo.")
+        else:
+            st.warning("⚠️ **Nenhum arquivo foi processado com sucesso.** Verifique os erros acima.")
+        
         # Liberar lock de processamento
         st.session_state["processing_lock"] = False
 
@@ -438,6 +432,19 @@ def run_ai_pdf():
         st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
         st.info(f"🕒 Timestamp: {st.session_state.get('timestamp_pasta', 'N/A')}")
         st.success("✅ **Arquivos já processados!** Clique nos botões abaixo para fazer download (sem reprocessamento).")
+    else:
+        # Mostrar seção de download mesmo sem arquivos para orientar o usuário
+        st.divider()
+        st.header("💾 Download dos Arquivos Processados")
+        st.warning("⚠️ **Nenhum arquivo processado encontrado.**")
+        st.info("📋 **Para ver arquivos para download:**")
+        st.markdown("""
+        1. **Crie o nome da pasta** usando o botão "📁 Criar Nome da Pasta"
+        2. **Faça upload dos PDFs** no campo acima
+        3. **Aguarde o processamento** ser concluído
+        4. **A seção de download aparecerá automaticamente** com os arquivos processados
+        """)
+        st.info("💡 **Dica:** Se você acabou de processar arquivos mas não vê esta seção, pode haver um erro no processamento. Verifique as mensagens acima.")
         
         # Informações sobre a estrutura de diretórios
         with st.expander("📋 **Informações sobre Organização dos Arquivos**", expanded=False):
