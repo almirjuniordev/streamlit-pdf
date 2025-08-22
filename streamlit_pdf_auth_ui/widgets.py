@@ -292,7 +292,7 @@ class __login__:
         else:
             with st.sidebar:
                 selected_option = option_menu(
-                    menu_title='PDF System',
+                    menu_title='Menu Principal',
                     menu_icon='file-earmark-pdf',
                     options=['PDF Upload'],
                     icons=['upload'],
