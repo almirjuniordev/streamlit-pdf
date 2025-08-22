@@ -6,6 +6,9 @@ import io
 import re
 import os
 import time
+import schedule
+import threading
+from datetime import datetime, timedelta
 
 # Configuração do Tesseract para Docker (Linux)
 # pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tesseract.exe"  # Windows
@@ -163,6 +166,83 @@ def run_ai_pdf():
         except Exception as e:
             st.warning(f"⚠️ Não foi possível criar estrutura de diretórios: {str(e)}")
         return None
+
+    # Função para limpeza automática de arquivos antigos
+    def limpar_arquivos_antigos():
+        """Remove arquivos processados com mais de 24 horas"""
+        try:
+            base_dir = "/app/processed_pdfs"
+            if not os.path.exists(base_dir):
+                return
+            
+            # Calcular data limite (24 horas atrás)
+            data_limite = datetime.now() - timedelta(hours=24)
+            arquivos_removidos = 0
+            espaco_liberado = 0
+            
+            # Percorrer todos os diretórios de timestamp
+            for item in os.listdir(base_dir):
+                item_path = os.path.join(base_dir, item)
+                
+                if os.path.isdir(item_path):
+                    # Verificar se é um diretório de timestamp (formato: YYYYMMDD_HHMMSS_*)
+                    if len(item.split('_')) >= 3:
+                        try:
+                            # Extrair timestamp do nome do diretório
+                            timestamp_str = f"{item.split('_')[0]}_{item.split('_')[1]}"
+                            data_arquivo = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                            
+                            # Se o arquivo é mais antigo que 24 horas, remover
+                            if data_arquivo < data_limite:
+                                # Calcular espaço antes de remover
+                                for root, dirs, files in os.walk(item_path):
+                                    for file in files:
+                                        file_path = os.path.join(root, file)
+                                        espaco_liberado += os.path.getsize(file_path)
+                                
+                                # Remover diretório e todo seu conteúdo
+                                import shutil
+                                shutil.rmtree(item_path)
+                                arquivos_removidos += 1
+                                
+                        except (ValueError, IndexError):
+                            # Se não conseguir parsear o timestamp, ignorar
+                            continue
+            
+            # Log da limpeza (opcional)
+            if arquivos_removidos > 0:
+                espaco_mb = espaco_liberado / (1024 * 1024)
+                print(f"🧹 Limpeza automática: {arquivos_removidos} diretórios removidos, {espaco_mb:.2f} MB liberados")
+                
+        except Exception as e:
+            print(f"❌ Erro na limpeza automática: {str(e)}")
+
+    # Função para iniciar o scheduler de limpeza
+    def iniciar_scheduler_limpeza():
+        """Inicia o scheduler para limpeza automática diária"""
+        try:
+            # Agendar limpeza todos os dias à meia-noite
+            schedule.every().day.at("00:00").do(limpar_arquivos_antigos)
+            
+            # Função para executar o scheduler em thread separada
+            def executar_scheduler():
+                while True:
+                    schedule.run_pending()
+                    time.sleep(60)  # Verificar a cada minuto
+            
+            # Iniciar thread do scheduler
+            scheduler_thread = threading.Thread(target=executar_scheduler, daemon=True)
+            scheduler_thread.start()
+            
+            print("✅ Scheduler de limpeza automática iniciado (limpeza diária às 00:00)")
+            
+        except Exception as e:
+            print(f"❌ Erro ao iniciar scheduler: {str(e)}")
+
+    # Iniciar scheduler na primeira execução
+    if "scheduler_iniciado" not in st.session_state:
+        iniciar_scheduler_limpeza()
+        st.session_state["scheduler_iniciado"] = True
 
     # NOVA LÓGICA: OCR antes da compressão com otimizações
     def encontrar_numero_guia(pdf_bytes):
@@ -382,6 +462,18 @@ def run_ai_pdf():
             - ✅ **Concorrência**: Múltiplos usuários podem processar simultaneamente
             - ✅ **Rastreabilidade**: Timestamp identifica quando foi processado
             - ✅ **Sem Conflitos**: Evita sobrescrita de arquivos
+            
+            ---
+            
+            ### 🧹 **Limpeza Automática:**
+            
+            **Frequência:** Diária às 00:00 (meia-noite)
+            
+            **Critério:** Arquivos com mais de 24 horas são removidos automaticamente
+            
+            **Objetivo:** Manter o servidor limpo e otimizar espaço de armazenamento
+            
+            **Segurança:** Apenas arquivos antigos são removidos, arquivos recentes são preservados
             """)
         
         # Calcular tamanho total dos arquivos
@@ -505,25 +597,37 @@ def run_ai_pdf():
                     key=f"download_{i}"
                 )
         
-        # Botão para limpar arquivos processados
-        if st.button("🗑️ Limpar Arquivos Processados"):
-            # Limpar arquivos da memória
-            st.session_state["processed_files"] = []
-            st.session_state["protocolo_atual"] = ""
-            st.session_state["nome_pasta"] = ""
-            st.session_state["timestamp_pasta"] = ""
-            st.session_state["processing_lock"] = False
-            
-            # Forçar limpeza de memória mais agressiva
-            import gc
-            gc.collect()
-            
-            # Limpar cache do Streamlit
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            
-            st.success("✅ Arquivos removidos da memória com sucesso!")
-            # Removido st.rerun() para evitar reprocessamento desnecessário
+        # Botões de limpeza
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Botão para limpar arquivos processados da memória
+            if st.button("🗑️ Limpar Arquivos da Memória"):
+                # Limpar arquivos da memória
+                st.session_state["processed_files"] = []
+                st.session_state["protocolo_atual"] = ""
+                st.session_state["nome_pasta"] = ""
+                st.session_state["timestamp_pasta"] = ""
+                st.session_state["processing_lock"] = False
+                
+                # Forçar limpeza de memória mais agressiva
+                import gc
+                gc.collect()
+                
+                # Limpar cache do Streamlit
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                
+                st.success("✅ Arquivos removidos da memória com sucesso!")
+        
+        with col2:
+            # Botão para limpeza manual do servidor (apenas para admin)
+            if st.button("🧹 Limpeza Manual do Servidor (Admin)"):
+                try:
+                    limpar_arquivos_antigos()
+                    st.success("✅ Limpeza manual executada com sucesso!")
+                except Exception as e:
+                    st.error(f"❌ Erro na limpeza manual: {str(e)}")
 
     # RODAPÉ
     footer_html = """
