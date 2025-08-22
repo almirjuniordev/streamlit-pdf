@@ -310,10 +310,12 @@ def run_ai_pdf():
         st.error("⚠️ Informe o número do protocolo antes de criar a pasta.")
 
     # SEÇÃO DE DOWNLOAD DOS ARQUIVOS PROCESSADOS
-    if st.session_state["processed_files"]:
+    # Verificar se há arquivos processados disponíveis para download
+    if st.session_state.get("processed_files", []):
         st.divider()
         st.header("💾 Download dos Arquivos Processados")
         st.info(f"📁 Pasta: {st.session_state['nome_pasta']}")
+        st.success("✅ **Arquivos já processados!** Clique nos botões abaixo para fazer download (sem reprocessamento).")
         
         # Calcular tamanho total dos arquivos
         total_size = sum(len(file_info['dados']) for file_info in st.session_state["processed_files"])
@@ -453,7 +455,7 @@ def run_ai_pdf():
             st.cache_resource.clear()
             
             st.success("✅ Arquivos removidos da memória com sucesso!")
-            st.rerun()
+            # Removido st.rerun() para evitar reprocessamento desnecessário
 
     # RODAPÉ
     footer_html = """
